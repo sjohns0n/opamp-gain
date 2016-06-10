@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdint.h>
 
-double nonInvertingGain(int range, int i, int j);
-double invertingGain(int range, int i, int j);
+double nonInvertingGain(int range, int i, uint32_t multiplier1, int j, uint32_t multiplier2);
+double invertingGain(int range, int i, uint32_t multiplier1, int j, uint32_t multiplier2);
 
 double E6[6] = {1.0, 1.5, 2.2,
 				3.3, 4.7, 6.8 };
@@ -56,63 +57,93 @@ int
 main(int argc, char **argv) {
 		char range[4], gainType;
 		int rangeNum = 0;
-		double tolerance;
+		double tolerancePercent;
 		int foundSuitable = 0;
 		int results = 0;
-		double gain = 0, calculatedGain = 0;
+		double desiredGain = 0, calculatedGain = 0;
 		double error = 0;
-		int i, j;
 		
 		printf("Inverting (i) / Non-Inverting (n): ");
+		//TODO: safer input handling
 		scanf("%c", &gainType);
 		if(gainType != 'i' && gainType != 'n') {
 				printf("Invlaid input.\n");
 		}
 		
 		printf("Please enter a gain: ");
-		scanf("%lf", &gain);
-		if(gain <= 0) {
+		//TODO: safer input handling
+		scanf("%lf", &desiredGain);
+		if(desiredGain <= 0) {
 				printf("Gain must be > 0\n");
 				exit(EXIT_FAILURE);
 		}
 		
-		printf("Please enter a percentage tolerance for the gain: ");
-		scanf("%lf", &tolerance);
+		//TODO: Tolerances
 		
 		printf("Please enter standard resistor range to use:\n");
 		printf("E6, E12, E24, E48, or E96.\n");
 		scanf("%s", range);
-		// Allows E96 or 96 as input
+		
 		if(isalpha(range[0])) {
 				rangeNum = atoi(range+1); // Get numeric value of range
 		} else {
 				rangeNum = atoi(range);
 		}
 		
-		error = gain / (100/tolerance); 
+		printf("\n");
+		printf("Search parameters: \n");
+		printf("Inv./ Non-inv.   : %c\n", gainType);
+		printf("Desired gain     : %.4f\n", desiredGain);
+		printf("Resistor range   : E%d\n", rangeNum);
+		printf("\n");
+		printf("\n");
 		
-		for(i = 0; i < rangeNum; i++) {
-				for(j = 0; j < rangeNum; j++) {
-						if(gainType == 'n') {
-								calculatedGain = nonInvertingGain(rangeNum, i, j);
-						} else {
-								calculatedGain = invertingGain(rangeNum, i, j);
-						}
-						if(calculatedGain <= (gain + error) &&
-								calculatedGain >= (gain - error)) {
-								foundSuitable = 1;
-								results += 1;
-								printf("Gain = %.2lf, R1 = %.2lf, R2 = %.2lf\n", calculatedGain, E96[i], E96[j]);
-								break;
+		/* Iterate through all options, select one with lowest error */
+		double lowestError = 1000;		
+		double gainError;
+		
+		uint64_t iterationNumber = 0;
+		uint32_t r1Multiplier,
+				 r2Multiplier;
+		
+		uint8_t r1Index,
+				r2Index;
+				
+		uint8_t r1OptimalIndex,
+				r2OptimalIndex;
+		
+		// brute force finding the closest pair
+		for(r1Index = 0; r1Index < rangeNum; r1Index++) {
+				for(r2Index = 0; r2Index < rangeNum; r2Index++) {
+						for(r1Multiplier = 1; r1Multiplier <= 1e7; r1Multiplier *= 10) {
+								for(r2Multiplier = 1; r2Multiplier <= 1e7; r2Multiplier *= 10) {
+										if(gainType == 'n') {
+												calculatedGain = nonInvertingGain(rangeNum, r1Index, r1Multiplier, r2Index, r2Multiplier);
+										} else {
+												calculatedGain = invertingGain(rangeNum, r1Index, r1Multiplier, r2Index, r2Multiplier);
+										}
+										//printf("calculated gain: %0.4f\n", calculatedGain);
+										//printf("%d\n", iterationNumber);
+										iterationNumber++;
+										
+										gainError = abs(desiredGain - calculatedGain);
+										if(gainError <= lowestError) {
+												lowestError = gainError;
+												r1OptimalIndex = r1Index;
+												r2OptimalIndex = r2Index;
+										}
+								}
 						}
 				}
 		}
 		
-		if(foundSuitable == 0) {
-				printf("Could not find any suitable resistor combinations");
-		} else {
-				printf("Results found: %d", results);
-		}
+		printf("Iterations: %lld\n", iterationNumber);
+		printf("Lowest gain error: %.4f\n", lowestError);
+		
+		printf("\n");
+		printf("r1 index: %00d, r1 value: %.2f\n", r1OptimalIndex, E12[r1OptimalIndex]*r1Multiplier);
+		printf("r2 index: %00d, r2 value: %.2f\n", r2OptimalIndex, E12[r2OptimalIndex]*r2Multiplier);
+		
 		//printf("sizeof E96: %d\n  sizeof E96/sizeE96[0]: %d\n", sizeof(E96), sizeof(E96) / sizeof(E96[0]));
 		
 		return 0;
@@ -123,7 +154,7 @@ main(int argc, char **argv) {
 	r2 is the feedback resistor and r1 is the input resistor on the inverting input. 
 */
 double
-invertingGain(int range, int i, int j) {
+invertingGain(int range, int i, uint32_t multiplier1, int j, uint32_t multiplier2) {
 		double gain = 0;
 		double r1, r2;
 		
@@ -152,7 +183,7 @@ invertingGain(int range, int i, int j) {
 				return 0;
 		}
 		
-		gain = r2 / r1;		
+		gain = (r2 * multiplier2) / (r1 * multiplier1);		
 		return gain;
 }
 
@@ -161,7 +192,7 @@ invertingGain(int range, int i, int j) {
 	r2 is the feedback resistor and r1 is the pulldown resistor on the inverting input. 
 */
 double
-nonInvertingGain(int range, int i, int j) {
+nonInvertingGain(int range, int i, uint32_t multiplier1, int j, uint32_t multiplier2) {
 		double gain = 0;
 		double r1, r2;
 		
@@ -190,6 +221,6 @@ nonInvertingGain(int range, int i, int j) {
 				return 0;
 		}
 		
-		gain = 1+ (r2 / r1);		
+		gain = 1 + ((r2 * multiplier2) / (r1 * multiplier1));		
 		return gain;
 }
