@@ -109,17 +109,12 @@ main(int argc, char **argv) {
 				return 0;
 		}
 		
-		printf("\n");
-		printf("Search parameters: \n");
-		printf("Inv./ Non-inv.   : %c\n", gainType);
-		printf("Desired gain     : %.4f\n", desiredGain);
-		printf("Resistor range   : E%d\n", rangeNum);
-		printf("\n");
-		printf("\n");
-		
 		/* Iterate through all options, select one with lowest error */
 		double lowestError = 1000;		
 		double gainError;
+		double optimalGain = 0;
+		
+		double multiplierMax = 100;
 		
 		uint64_t iterationNumber = 0;
 		uint32_t r1Multiplier = 1,
@@ -128,49 +123,57 @@ main(int argc, char **argv) {
 		uint8_t r1Index,
 				r2Index;
 				
-		uint8_t r1OptimalIndex,
-				r2OptimalIndex;
+		double r1Optimal,
+			   r2Optimal;
 		
 		// brute force finding the closest pair
 		for(r1Index = 0; r1Index < rangeNum; r1Index++) {
 				for(r2Index = 0; r2Index < rangeNum; r2Index++) {
-						//for(r1Multiplier = 1; r1Multiplier <= 1e7; r1Multiplier *= 10) {
-							//	for(r2Multiplier = 1; r2Multiplier <= 1e7; r2Multiplier *= 10) {
+						for(r1Multiplier = 1; r1Multiplier <= multiplierMax; r1Multiplier *= 10) {
+								for(r2Multiplier = 1; r2Multiplier <= multiplierMax; r2Multiplier *= 10) {
 										if(gainType == 'n') {
-												calculatedGain = (rangeAddr[r2Index] * r2Multiplier) / (rangeAddr[r1Index] * r1Multiplier);
-												//calculatedGain = nonInvertingGain(rangeAddr, r1Index, r1Multiplier, r2Index, r2Multiplier);
+												calculatedGain = nonInvertingGain(rangeAddr, r1Index, r1Multiplier, r2Index, r2Multiplier);
 										} else {
-												calculatedGain = invertingGain(rangeAddr, r1Index, r1Multiplier, r2Index, r2Multiplier);
+												printf("error\n\n");
+												//calculatedGain = invertingGain(rangeAddr, r1Index, r1Multiplier, r2Index, r2Multiplier);
 										}
+										
+										gainError = desiredGain - calculatedGain;
+										if(fabs(gainError) < lowestError) {
+												lowestError = gainError;
+												r1Optimal = rangeAddr[r1Index] * r1Multiplier;
+												r2Optimal = rangeAddr[r2Index] * r2Multiplier;
+												optimalGain = calculatedGain;
+										 }
+										
+										#ifdef DEBUG
 										printf("r1: %.1f, r2: %.1f   ", rangeAddr[r1Index], rangeAddr[r2Index]);
-										printf("calculated gain: %0.4f", calculatedGain);
+										printf("calculated gain: %8.4f  gain error %+8.4f\n", calculatedGain, gainError);
+										#endif
 										//printf("%d\n", iterationNumber);
 										iterationNumber++;
-										
-										gainError = fabs(desiredGain - calculatedGain);
-										printf("      gain error %.4f\n", gainError);   
-										if(gainError <= lowestError) {
-												lowestError = gainError;
-												r1OptimalIndex = r1Index;
-												r2OptimalIndex = r2Index;
-												//break;
-										 }
-										//
-								//}
-						//}
+								}
+						}
 				}
 		}
+		
+		printf("\n");
+		printf("Search parameters: \n");
+		printf("Inv./ Non-inv.   : %c\n", gainType);
+		printf("Desired gain     : %.4f\n", desiredGain);
+		printf("Resistor range   : E%d\n", rangeNum);
+		printf("\n");
+		printf("\n");
 		
 		printf("Iterations: %ld\n", iterationNumber);
 		printf("Lowest gain error: %.4f\n", lowestError);
 		
 		printf("\n");
-		printf("r1 index: %0d, r1 value: %.2f\n", r1OptimalIndex, E12[r1OptimalIndex]*r1Multiplier);
-		printf("r2 index: %0d, r2 value: %.2f\n", r2OptimalIndex, E12[r2OptimalIndex]*r2Multiplier);
+		printf("r1 optimal:      %9.1f\n", r1Optimal);
+		printf("r2 optimal:      %9.1f\n", r2Optimal);
+		printf("calculated gain: %9.1f\n", optimalGain);
 		
-		//printf("sizeof E96: %d\n  sizeof E96/sizeE96[0]: %d\n", sizeof(E96), sizeof(E96) / sizeof(E96[0]));
-		
-		return 0;
+		return EXIT_SUCCESS;
 }
 
 /* 
@@ -182,10 +185,10 @@ invertingGain(const double* rangeAddr, int i, uint32_t multiplier1, int j, uint3
 		double gain = 0;
 		double r1, r2;
 		
-		r1 = rangeAddr[i];
-		r2 = rangeAddr[j];
+		r1 = rangeAddr[i] * multiplier1;
+		r2 = rangeAddr[j] * multiplier2;
 		
-		gain = (r2 * multiplier2) / (r1 * multiplier1);		
+		gain = (r2 / r1);		
 		return gain;
 }
 
@@ -198,9 +201,15 @@ nonInvertingGain(const double* rangeAddr, int i, uint32_t multiplier1, int j, ui
 		double gain = 0;
 		double r1, r2;
 		
-		r1 = rangeAddr[i];
-		r2 = rangeAddr[j];
+		r1 = rangeAddr[i] * multiplier1;
+		r2 = rangeAddr[j] * multiplier2;		
 		
-		gain = 1 + ((r2 * multiplier2) / (r1 * multiplier1));		
+		#ifdef DEBUG
+		printf("inside gain block: r1 = %.1f, r2 = %.1f", r1, r2);
+		printf(" r2 / r1 = %.2f", r2 / r1);
+		printf("   1.0 + (r2 / r1) = %.2f\n\n", 1.0 + (r2 / r1));
+		#endif
+		
+		gain = 1.0 + (r2 / r1);		
 		return gain;
 }
