@@ -3,56 +3,10 @@
 #include <math.h>
 #include <ctype.h>
 #include <stdint.h>
+#include "resistorSeries.h"
 
-double nonInvertingGain(const double* rangeAddr, int r1Index, uint32_t multiplier1, int r2Index, uint32_t multiplier2);
-double invertingGain(const double* rangeAddr, int i, uint32_t multiplier1, int j, uint32_t multiplier2);
-
-const double E6[6] = {1.0, 1.5, 2.2,
-					  3.3, 4.7, 6.8 };
-
-const double E12[12] = {1.0, 1.2, 1.5,
-						1.8, 2.2, 2.7,
-						3.3, 3.9, 4.7,
-						5.6, 6.8, 8.2 };
-
-const double E24[24] = {1.0, 1.1, 1.2,
-						1.3, 1.5, 1.6,
-						1.8, 2.0, 2.2,
-						2.4, 2.7, 3.0,
-						3.3, 3.6, 3.9,
-						4.3, 4.7, 5.1,
-						5.6, 6.2, 6.8,
-						7.5, 8.2, 9.1 }; 	
-
-const double E48[48] = {1.00, 1.05, 1.10,
-						1.15, 1.21, 1.27,
-						1.33, 1.40, 1.47,
-						1.54, 1.62, 1.69,
-						1.78, 1.87, 1.96,
-						2.05, 2.15, 2.26,
-						2.37, 2.49, 2.61,
-						2.74, 2.87, 3.01,
-						3.16, 3.32, 3.48,
-						3.65, 3.83, 4.02,
-						4.22, 4.42, 4.64,
-						4.87, 5.11, 5.36,
-						5.62, 5.90, 6.19,
-						6.49, 6.81, 7.15,
-						7.50, 7.87, 8.25,
-						8.66, 9.09, 9.53 }; 			
-
-const double E96[96] = {1.00, 1.02, 1.05, 1.07, 1.10, 1.13, 1.15, 1.18, 
-						1.21, 1.24, 1.27, 1.30, 1.33, 1.37, 1.40, 1.43, 
-						1.47, 1.50, 1.54, 1.58, 1.62, 1.65, 1.69, 1.74, 
-						1.78, 1.82, 1.87, 1.91, 1.96, 2.00, 2.05, 2.10, 
-						2.15, 2.21, 2.26, 2.32, 2.37, 2.43, 2.49, 2.55, 
-						2.61, 2.67, 2.74, 2.80, 2.87, 2.94, 3.01, 3.09, 
-						3.16, 3.24, 3.32, 3.40, 3.48, 3.57, 3.65, 3.74, 
-						3.83, 3.92, 4.02, 4.12, 4.22, 4.32, 4.42, 4.53, 
-						4.64, 4.75, 4.87, 4.99, 5.11, 5.23, 5.36, 5.49, 
-						5.62, 5.76, 5.90, 6.04, 6.19, 6.34, 6.49, 6.65, 
-						6.81, 6.98, 7.15, 7.32, 7.50, 7.68, 7.87, 8.06, 
-						8.25, 8.45, 8.66, 8.87, 9.09, 9.31, 9.53, 9.76 };
+double nonInvertingGain(double* rangeAddr, int r1Index, uint32_t multiplier1, int r2Index, uint32_t multiplier2);
+double invertingGain(double* rangeAddr, int i, uint32_t multiplier1, int j, uint32_t multiplier2);
 
 int
 main(int argc, char **argv) {
@@ -78,7 +32,7 @@ main(int argc, char **argv) {
 	//TODO: Tolerances
 	
 	printf("Please enter standard resistor range to use:\n");
-	printf("E6, E12, E24, E48, or E96.\n");
+	printf("E6, E12, E24, E48, or E96: ");
 	scanf("%s", range);
 	
 	if(isalpha(range[0])) {
@@ -87,28 +41,8 @@ main(int argc, char **argv) {
 		rangeNum = atoi(range);
 	}
 	
-	const double* rangeAddr;
-	
-	switch(rangeNum) {
-	case 6:
-		rangeAddr = E6;
-		break;
-	case 12:
-		rangeAddr = E12;
-		break;
-	case 24:
-		rangeAddr = E24;
-		break;
-	case 48:
-		rangeAddr = E48;
-		break;
-	case 96:
-		rangeAddr = E96;
-		break;	
-	default:
-		return 0;
-	}
-	
+	double* rangeAddr = getSeriesAddr(rangeNum);
+		
 	/* Iterate through all options, select one with lowest error */
 	double lowestError = 1000;		
 	double gainError;
@@ -161,7 +95,7 @@ main(int argc, char **argv) {
 	printf("\n");
 	printf("Search parameters: \n");
 	printf("Inv./ Non-inv.   : %c\n", gainType);
-	printf("Desired gain     : %.2lf\n", desiredGain);
+	printf("Desired gain     : %.4lf\n", desiredGain);
 	printf("Resistor range   : E%d\n", rangeNum);
 	printf("\n");
 	printf("\n");
@@ -174,8 +108,8 @@ main(int argc, char **argv) {
 	
 	printf("r1 optimal:      %9.1lf ohms\n", r1Optimal);
 	printf("r2 optimal:      %9.1lf ohms\n", r2Optimal);
-	printf("calculated gain: %9.1lf\n", optimalGain);
-	printf("gain error:      %9.1lf%%\n", (optimalGain / desiredGain) * 100 - 100);
+	printf("calculated gain: %10.2lf\n", optimalGain);
+	printf("gain error:      %+10.2lf%%\n", (optimalGain / desiredGain) * 100 - 100);
 	
 	return 0;
 }
@@ -185,8 +119,8 @@ Calculates the gain of an inverting amplifier circuit, where
 r2 is the feedback resistor and r1 is the input resistor on the inverting input. 
 */
 double
-invertingGain(const double* rangeAddr, int r1Index, uint32_t multiplier1,
-									   int r2Index, uint32_t multiplier2) {
+invertingGain(double* rangeAddr, int r1Index, uint32_t multiplier1,
+								 int r2Index, uint32_t multiplier2) {
 	double gain = 0;
 	double r1, r2;
 	
@@ -202,8 +136,8 @@ Calculates the gain of a non inverting amplifier circuit, where
 r2 is the feedback resistor and r1 is the pulldown resistor on the inverting input. 
 */
 double
-nonInvertingGain(const double* rangeAddr, int r1Index, uint32_t multiplier1,
-									      int r2Index, uint32_t multiplier2) {
+nonInvertingGain(double* rangeAddr, int r1Index, uint32_t multiplier1,
+    						        int r2Index, uint32_t multiplier2) {
 	double gain = 0;
 	double r1, r2;
 	
